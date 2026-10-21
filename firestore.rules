@@ -1,0 +1,92 @@
+rules_version = '2';
+
+// =====================================================================
+//  כללי האבטחה של הפורום. מדביקים את כל הקובץ הזה ב-Firebase:
+//  Firestore Database ← Rules ← Publish
+//
+//  חשוב: החליפו את ADMIN@EXAMPLE.COM בשורה למטה בכתובת המייל של מנהל הפורום
+//  (באותיות קטנות, בדיוק כמו שהמנהל נרשם בה לאתר).
+// =====================================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function adminEmail() { return 'ADMIN@EXAMPLE.COM'; }
+
+    function signedIn() { return request.auth != null; }
+    function isAdmin() {
+      return signedIn()
+        && request.auth.token.email == adminEmail()
+        && request.auth.token.email_verified == true;
+    }
+    function isMember() {
+      return signedIn() && exists(/databases/$(database)/documents/members/$(request.auth.uid));
+    }
+    function canUse() { return isAdmin() || isMember(); }
+    function memberName() {
+      return get(/databases/$(database)/documents/members/$(request.auth.uid)).data.name;
+    }
+    function textOk(v, max) { return v is string && v.size() > 0 && v.size() <= max; }
+    function nameOk(n) { return isMember() ? n == memberName() : (isAdmin() && textOk(n, 80)); }
+
+    // Site texts: everyone may read (shown on the sign-in screen), only the admin edits.
+    match /settings/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Registration details: each person sees their own, the admin sees all.
+    match /users/{uid} {
+      allow read: if isAdmin() || (signedIn() && request.auth.uid == uid);
+      allow create: if signedIn() && request.auth.uid == uid
+        && request.resource.data.status == 'pending'
+        && request.resource.data.email == request.auth.token.email
+        && textOk(request.resource.data.name, 80)
+        && textOk(request.resource.data.phone, 30);
+      allow update: if isAdmin()
+        || (signedIn() && request.auth.uid == uid
+            && resource.data.status == 'rejected'
+            && request.resource.data.status == 'pending'
+            && request.resource.data.email == request.auth.token.email
+            && textOk(request.resource.data.name, 80));
+      allow delete: if isAdmin();
+    }
+
+    // Approved members. Only the admin adds or removes.
+    match /members/{uid} {
+      allow read: if canUse() || (signedIn() && request.auth.uid == uid);
+      allow write: if isAdmin();
+    }
+
+    // Official committee updates. Only the admin publishes.
+    match /updates/{id} {
+      allow read: if canUse();
+      allow write: if isAdmin();
+    }
+
+    // Forums and their replies: approved members only.
+    match /threads/{tid} {
+      allow read: if canUse();
+      allow create: if canUse()
+        && request.resource.data.authorId == request.auth.uid
+        && nameOk(request.resource.data.authorName)
+        && textOk(request.resource.data.title, 140)
+        && textOk(request.resource.data.body, 8000)
+        && request.resource.data.replyCount == 0;
+      allow update: if isAdmin()
+        || (isMember() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastActivity', 'replyCount']));
+      allow delete: if isAdmin() || (isMember() && resource.data.authorId == request.auth.uid);
+
+      match /replies/{rid} {
+        allow read: if canUse();
+        allow create: if canUse()
+          && request.resource.data.authorId == request.auth.uid
+          && nameOk(request.resource.data.authorName)
+          && textOk(request.resource.data.body, 8000);
+        allow delete: if isAdmin()
+          || (isMember() && (resource.data.authorId == request.auth.uid
+              || get(/databases/$(database)/documents/threads/$(tid)).data.authorId == request.auth.uid));
+      }
+    }
+  }
+}
