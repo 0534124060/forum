@@ -6,12 +6,12 @@
 // 1) הדביקו כאן את פרטי החיבור שקיבלתם מ-Firebase
 //    (Project settings ← Your apps ← SDK setup and configuration ← Config)
 export const FIREBASE_CONFIG = {
-  apiKey: "PASTE_HERE",
-  authDomain: "PASTE_HERE",
-  projectId: "PASTE_HERE",
-  storageBucket: "PASTE_HERE",
-  messagingSenderId: "PASTE_HERE",
-  appId: "PASTE_HERE",
+  apiKey: "AIzaSyCnKP26w10niZWKXdTMu9ik9qpIHJEHk7Y",
+  authDomain: "hamatmidim-ako.firebaseapp.com",
+  projectId: "hamatmidim-ako",
+  storageBucket: "hamatmidim-ako.firebasestorage.app",
+  messagingSenderId: "839745625111",
+  appId: "1:839745625111:web:e84bf609b9a96212731052",
 };
 
 // 2) טקסטים ברירת מחדל של האתר.
